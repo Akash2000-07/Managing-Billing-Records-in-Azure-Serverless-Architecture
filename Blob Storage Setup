@@ -1,0 +1,6 @@
+Step 1: Blob Storage Setup Or Throught AZure Ui also you can create 
+
+commands:
+az storage account create --name billingstorageacct --resource-group <rg> --location <region> --sku Standard_LRS
+
+az storage container create --name billing-archive --account-name billingstorageacct --public-access off
