@@ -1,0 +1,31 @@
+import os, json
+from azure.cosmos import CosmosClient
+from azure.storage.blob import BlobServiceClient
+from datetime import datetime, timedelta
+
+cosmos_url = os.environ['COSMOS_URL']
+cosmos_key = os.environ['COSMOS_KEY']
+cosmos_db = os.environ['COSMOS_DB']
+cosmos_container = os.environ['COSMOS_CONTAINER']
+blob_conn_str = os.environ['BLOB_CONNECTION_STRING']
+blob_container = os.environ['BLOB_CONTAINER']
+
+def main(mytimer):
+    client = CosmosClient(cosmos_url, cosmos_key)
+    db = client.get_database_client(cosmos_db)
+    container = db.get_container_client(cosmos_container)
+
+    cutoff_date = (datetime.utcnow() - timedelta(days=90)).isoformat()
+    old_records = container.query_items(
+        query="SELECT * FROM c WHERE c.timestamp < @cutoff",
+        parameters=[{"name": "@cutoff", "value": cutoff_date}],
+        enable_cross_partition_query=True
+    )
+
+    blob_service = BlobServiceClient.from_connection_string(blob_conn_str)
+    archive_container = blob_service.get_container_client(blob_container)
+
+    for record in old_records:
+        blob_name = f"{record['id']}.json"
+        archive_container.upload_blob(blob_name, json.dumps(record), overwrite=True)
+        container.delete_item(record, partition_key=record['partitionKey'])
